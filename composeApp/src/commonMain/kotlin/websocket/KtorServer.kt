@@ -1,7 +1,5 @@
 package websocket
 import ctap.Communicator
-import ctap.authenticator
-import ctap.install
 import io.ktor.server.application.call
 import io.ktor.server.application.install
 import io.ktor.server.engine.embeddedServer
@@ -17,11 +15,9 @@ import io.ktor.websocket.Frame
 import io.ktor.websocket.close
 
 
-val webSocketCommunicator = Communicator().apply {
-    authenticator.install(this)
-}
+val webSocketCommunicator by lazy { Communicator() }
 
-val server by lazy {
+val ktorServer by lazy {
     embeddedServer(Netty, 11107, watchPaths = emptyList()) {
         install(WebSockets)
         routing {

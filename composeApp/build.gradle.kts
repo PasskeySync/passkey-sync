@@ -5,6 +5,7 @@ plugins {
     alias(libs.plugins.kotlinMultiplatform)
     alias(libs.plugins.androidApplication)
     alias(libs.plugins.jetbrainsCompose)
+    alias(libs.plugins.kotlinSerialization)
 }
 
 kotlin {
@@ -37,6 +38,7 @@ kotlin {
             implementation(libs.ktor.server.netty)
             implementation(libs.ktor.server.websockets)
             implementation(libs.logback)
+            implementation(libs.kotlinx.serialization.cbor)
         }
         desktopMain.dependencies {
             implementation(compose.desktop.currentOs)

@@ -17,6 +17,7 @@ junit = "4.13.2"
 kotlin = "1.9.21"
 ktor = "2.3.7"
 logback = "1.4.14"
+kotlinx-serialization = "1.6.2"
 
 [libraries]
 kotlin-test = { module = "org.jetbrains.kotlin:kotlin-test", version.ref = "kotlin" }
@@ -40,6 +41,7 @@ ktor-server-netty = { module = "io.ktor:ktor-server-netty-jvm", version.ref = "k
 ktor-server-tests = { module = "io.ktor:ktor-server-tests-jvm", version.ref = "ktor" }
 ktor-server-websockets = { module = "io.ktor:ktor-server-websockets-jvm", version.ref = "ktor" }
 ktor-client-core = { module = "io.ktor:ktor-client-core-jvm", version.ref = "ktor" }
+kotlinx-serialization-cbor = { module = "org.jetbrains.kotlinx:kotlinx-serialization-cbor", version.ref = "kotlinx-serialization" }
 
 [plugins]
 androidApplication = { id = "com.android.application", version.ref = "agp" }
@@ -48,3 +50,4 @@ jetbrainsCompose = { id = "org.jetbrains.compose", version.ref = "compose-plugin
 kotlinJvm = { id = "org.jetbrains.kotlin.jvm", version.ref = "kotlin" }
 ktor = { id = "io.ktor.plugin", version.ref = "ktor" }
 kotlinMultiplatform = { id = "org.jetbrains.kotlin.multiplatform", version.ref = "kotlin" }
+kotlinSerialization = { id = "org.jetbrains.kotlin.plugin.serialization", version.ref = "kotlin" }
