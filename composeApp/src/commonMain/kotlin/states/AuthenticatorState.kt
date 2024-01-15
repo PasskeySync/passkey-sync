@@ -1,0 +1,5 @@
+package states
+
+interface AuthenticatorState {
+
+}

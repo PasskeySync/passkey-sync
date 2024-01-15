@@ -1,6 +1,6 @@
 package com.littleetx.passkeysync
 
-import App
+import views.App
 import android.os.Bundle
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
