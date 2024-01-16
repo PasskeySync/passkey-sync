@@ -1,11 +1,27 @@
 package crypto
 
 import ctap.ECCredentialPublicKey
+import ctap.PublicKeyCredentialUserEntity
+import io.ktor.util.decodeBase64Bytes
+import io.ktor.util.encodeBase64
+import kotlinx.serialization.ExperimentalSerializationApi
+import kotlinx.serialization.KSerializer
+import kotlinx.serialization.Serializable
+import kotlinx.serialization.builtins.serializer
+import kotlinx.serialization.cbor.Cbor
+import kotlinx.serialization.decodeFromByteArray
+import kotlinx.serialization.descriptors.SerialDescriptor
+import kotlinx.serialization.descriptors.buildClassSerialDescriptor
+import kotlinx.serialization.encodeToByteArray
+import kotlinx.serialization.encoding.Decoder
+import kotlinx.serialization.encoding.Encoder
+import java.io.ByteArrayOutputStream
 import java.io.File
 import java.io.FileInputStream
 import java.io.FileOutputStream
 import java.io.ObjectInputStream
 import java.io.ObjectOutputStream
+import java.security.KeyPair
 import java.security.KeyPairGenerator
 import java.security.PrivateKey
 import java.security.SecureRandom
@@ -15,30 +31,62 @@ import java.security.spec.ECGenParameterSpec
 
 const val filePath = "appKey.dat"
 
-val keys: MutableMap<String, PrivateKey> by lazy {
+object KeyPairSerializer : KSerializer<KeyPair> {
+    override val descriptor: SerialDescriptor
+        get() = buildClassSerialDescriptor("KeyPair") {
+            element("bytes", String.serializer().descriptor)
+        }
+
+    override fun deserialize(decoder: Decoder): KeyPair {
+        val bytes = decoder.decodeString()
+        ObjectInputStream(bytes.decodeBase64Bytes().inputStream()).use {
+            return it.readObject() as KeyPair
+        }
+    }
+
+    override fun serialize(encoder: Encoder, value: KeyPair) {
+        val bytes = ByteArrayOutputStream().use {
+            ObjectOutputStream(it).use {
+                it.writeObject(value)
+            }
+            it.toByteArray()
+        }
+        encoder.encodeString(bytes.encodeBase64())
+    }
+
+}
+
+@Serializable
+data class CredentialInfo(
+    val user: PublicKeyCredentialUserEntity,
+    @Serializable(with = KeyPairSerializer::class) val keyPair: KeyPair,
+    val signCount: Int,
+)
+
+typealias CredentialInfoMap = MutableMap<String, CredentialInfo>
+
+@OptIn(ExperimentalSerializationApi::class)
+val credentialInfo: MutableMap<String, CredentialInfoMap> by lazy {
     val file = File(filePath)
-    if (file.exists()) {
+    val map = if (file.exists()) {
         FileInputStream(filePath).use {
-            ObjectInputStream(it).readObject() as MutableMap<String, PrivateKey>
+            Cbor.decodeFromByteArray<MutableMap<String, CredentialInfoMap>>(it.readBytes())
         }
     } else {
         file.createNewFile()
         mutableMapOf()
     }
+    map
 }
 
-fun savePrivateKey(keyAlias: String, privateKey: PrivateKey) {
-    keys[keyAlias] = privateKey
+@OptIn(ExperimentalSerializationApi::class)
+private fun saveResult() {
     FileOutputStream(filePath).use {
-        ObjectOutputStream(it).writeObject(keys)
+        it.write(Cbor.encodeToByteArray(credentialInfo))
     }
 }
 
-fun getPrivateKey(keyAlias: String): PrivateKey {
-    return keys[keyAlias] ?: throw Exception("Key not found")
-}
-
-fun normalizeKey(key: ByteArray): ByteArray {
+private fun normalizeKey(key: ByteArray): ByteArray {
     return if (key[0] == 0.toByte()) {
         key.slice(1 until key.size).toByteArray()
     } else {
@@ -46,11 +94,21 @@ fun normalizeKey(key: ByteArray): ByteArray {
     }
 }
 
-actual fun generateAppKey(keyAlias: String): ECCredentialPublicKey {
+@OptIn(ExperimentalStdlibApi::class)
+actual fun generateAppKey(
+    rpId: String,
+    credId: ByteArray,
+    user: PublicKeyCredentialUserEntity,
+): ECCredentialPublicKey {
     val keyPairGenerator = KeyPairGenerator.getInstance("EC")
     keyPairGenerator.initialize(ECGenParameterSpec("secp256r1"), SecureRandom())
     val keyPair = keyPairGenerator.generateKeyPair()
-    savePrivateKey(keyAlias, keyPair.private)
+    credentialInfo.getOrPut(rpId) { mutableMapOf() }[credId.encodeBase64()] = CredentialInfo(
+        user = user,
+        keyPair = keyPair,
+        signCount = 0,
+    )
+    saveResult()
     val ecPublicKey = keyPair.public as ECPublicKey
     return ECCredentialPublicKey(
         x = normalizeKey(ecPublicKey.w.affineX.toByteArray()),
@@ -58,10 +116,34 @@ actual fun generateAppKey(keyAlias: String): ECCredentialPublicKey {
     )
 }
 
-actual fun signMessage(keyAlias: String, message: ByteArray): ByteArray {
-    val privateKey = getPrivateKey(keyAlias)
+actual fun getExistingCredentials(rpId: String): Set<Pair<ByteArray, PublicKeyCredentialUserEntity>> {
+    return credentialInfo.getOrPut(rpId) { mutableMapOf() }.map { (credId, credInfo) ->
+        credId.decodeBase64Bytes() to credInfo.user
+    }.toSet()
+}
+
+actual fun getExistingRps(): Set<String> {
+    return credentialInfo.keys
+}
+
+@OptIn(ExperimentalStdlibApi::class)
+actual fun signMessage(
+    rpId: String,
+    credId: ByteArray,
+    messageGetter: () -> ByteArray,
+): ByteArray {
+    val credInfo = credentialInfo[rpId]!![credId.encodeBase64()]!!
+    credentialInfo[rpId]!![credId.encodeBase64()] =
+        credInfo.copy(signCount = credInfo.signCount + 1)
+    saveResult()
+    val privateKey = credInfo.keyPair.private as PrivateKey
     val ecdsaSign = Signature.getInstance("SHA256withECDSA")
     ecdsaSign.initSign(privateKey)
-    ecdsaSign.update(message)
+    ecdsaSign.update(messageGetter())
     return ecdsaSign.sign()
+}
+
+@OptIn(ExperimentalStdlibApi::class)
+actual fun getSignCount(rpId: String, credId: ByteArray): Int {
+    return credentialInfo[rpId]!![credId.encodeBase64()]!!.signCount
 }
