@@ -67,8 +67,8 @@ fun DispatchRoute.authenticatorApi() {
 
         val rpIdHash = MessageDigest.getInstance("SHA-256")
             .digest(request.rp.id.toByteArray())
-
-        val publicKey = generateAppKey("${request.rp.id}/${request.user.id}")
+        val alias = "${request.rp.id}/${request.user.id}"
+        val publicKey = generateAppKey(alias)
 
         fun createFlags(rk: Boolean, userPresent: Boolean, userVerified: Boolean): Byte {
             var flags = 0x00.toByte()
@@ -89,7 +89,7 @@ fun DispatchRoute.authenticatorApi() {
         val dataToSign = byteArrayOf(*authenticatorData.serialize(), *request.clientDataHash)
         val attestationStatement = AttestationStatement(
             COSEAlgorithmIdentifiers.ES256,
-            signMessage(request.rp.id, dataToSign),
+            signMessage(alias, dataToSign),
         )
         val response = MakeCredentialResponse(
             "packed",

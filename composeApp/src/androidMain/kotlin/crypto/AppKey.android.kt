@@ -9,6 +9,13 @@ import java.security.Signature
 import java.security.interfaces.ECPublicKey
 import java.security.spec.ECGenParameterSpec
 
+fun normalizeKey(key: ByteArray): ByteArray {
+    return if (key[0] == 0.toByte()) {
+        key.slice(1 until key.size).toByteArray()
+    } else {
+        key
+    }
+}
 
 actual fun generateAppKey(keyAlias: String): ECCredentialPublicKey {
     val keyPairGenerator = KeyPairGenerator.getInstance(
@@ -24,8 +31,8 @@ actual fun generateAppKey(keyAlias: String): ECCredentialPublicKey {
 
     val ecPublicKey = keyPairGenerator.generateKeyPair().public as ECPublicKey
     return ECCredentialPublicKey(
-        ecPublicKey.w.affineX.toByteArray(),
-        ecPublicKey.w.affineY.toByteArray(),
+        x = normalizeKey(ecPublicKey.w.affineX.toByteArray()),
+        y = normalizeKey(ecPublicKey.w.affineY.toByteArray()),
     )
 }
 

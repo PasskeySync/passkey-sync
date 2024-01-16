@@ -38,6 +38,14 @@ fun getPrivateKey(keyAlias: String): PrivateKey {
     return keys[keyAlias] ?: throw Exception("Key not found")
 }
 
+fun normalizeKey(key: ByteArray): ByteArray {
+    return if (key[0] == 0.toByte()) {
+        key.slice(1 until key.size).toByteArray()
+    } else {
+        key
+    }
+}
+
 actual fun generateAppKey(keyAlias: String): ECCredentialPublicKey {
     val keyPairGenerator = KeyPairGenerator.getInstance("EC")
     keyPairGenerator.initialize(ECGenParameterSpec("secp256r1"), SecureRandom())
@@ -45,8 +53,8 @@ actual fun generateAppKey(keyAlias: String): ECCredentialPublicKey {
     savePrivateKey(keyAlias, keyPair.private)
     val ecPublicKey = keyPair.public as ECPublicKey
     return ECCredentialPublicKey(
-        ecPublicKey.w.affineX.toByteArray(),
-        ecPublicKey.w.affineY.toByteArray(),
+        x = normalizeKey(ecPublicKey.w.affineX.toByteArray()),
+        y = normalizeKey(ecPublicKey.w.affineY.toByteArray()),
     )
 }
 

@@ -39,6 +39,7 @@ kotlin {
             implementation(libs.ktor.server.websockets)
             implementation(libs.logback)
             implementation(libs.kotlinx.serialization.cbor)
+            implementation(libs.jackson.dataformat.cbor)
         }
         desktopMain.dependencies {
             implementation(compose.desktop.currentOs)
