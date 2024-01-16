@@ -1,5 +1,6 @@
 package ctap
 
+import crypto.CredentialPair
 import crypto.generateAppKey
 import crypto.generateCredentialId
 import crypto.getExistingCredentials
@@ -14,6 +15,7 @@ import kotlinx.serialization.decodeFromByteArray
 import kotlinx.serialization.encodeToByteArray
 import states.AuthenticatorState
 import java.security.MessageDigest
+import java.util.Optional
 import kotlin.experimental.or
 
 class Authenticator(
@@ -57,10 +59,11 @@ fun DispatchRoute.authenticatorApi() {
         @SerialName("3") val attStmt: AttestationStatement,
     )
 
-    dispatch(AuthenticatorApiCode.AUTHENTICATOR_MAKE_CREDENTIAL) {
+    dispatch(AuthenticatorApiCode.AUTHENTICATOR_MAKE_CREDENTIAL, blocking = true) {
         val request = Cbor { ignoreUnknownKeys = true }
             .decodeFromByteArray<MakeCredentialRequest>(data)
         logger.info("AuthenticatorMakeCredential request: $request")
+        auth.state.isRegister = true
 
         val supportedAlgo = PublicKeyCredentialParameters(
             "public-key",
@@ -73,8 +76,6 @@ fun DispatchRoute.authenticatorApi() {
             return@dispatch respondError(StatusCode.CTAP2_ERR_UNSUPPORTED_ALGORITHM)
         }
 
-        //TODO: request for user verification (PIN)
-
         val existingCredentials = getExistingCredentials(request.rp.id)
         request.excludeList.forEach { exclude ->
             if (existingCredentials.any { (credId, _) -> credId.contentEquals(exclude.id) }) {
@@ -84,6 +85,11 @@ fun DispatchRoute.authenticatorApi() {
         }
 
         val credId = generateCredentialId()
+        testUserVerification(request.rp.id, credId, request.user) {
+            logger.info("AuthenticatorMakeCredential: verification failed")
+            return@dispatch respondError(StatusCode.CTAP2_ERR_OPERATION_DENIED)
+        }
+
         val rpIdHash = MessageDigest.getInstance("SHA-256")
             .digest(request.rp.id.toByteArray())
         val publicKey = generateAppKey(request.rp.id, credId, request.user)
@@ -125,22 +131,29 @@ fun DispatchRoute.authenticatorApi() {
         @SerialName("3") @ByteString val signature: ByteArray,
         @SerialName("4") val user: PublicKeyCredentialUserEntity,
     )
-    dispatch(AuthenticatorApiCode.AUTHENTICATOR_GET_ASSERTION) {
+    dispatch(AuthenticatorApiCode.AUTHENTICATOR_GET_ASSERTION, blocking = true) {
         val request = Cbor { ignoreUnknownKeys = true }
             .decodeFromByteArray<GetAssertionRequest>(data)
-
         logger.info("AuthenticatorGetAssertion request: $request")
+        auth.state.isRegister = false
         val existingCredentials = getExistingCredentials(request.rpId)
         if (existingCredentials.isEmpty()) {
             logger.info("AuthenticatorGetAssertion: no credentials")
             return@dispatch respondError(StatusCode.CTAP2_ERR_NO_CREDENTIALS)
         }
         val (credId, user) = if (request.allowList.isEmpty()) {
-            existingCredentials.first()// TODO: let user choose a credential
+            userSelectCredentials(request.rpId, existingCredentials) {
+                logger.info("AuthenticatorMakeCredential: user cancel select credential")
+                return@dispatch respondError(StatusCode.CTAP2_ERR_OPERATION_DENIED)
+            }.get()
         } else {
             existingCredentials.firstOrNull { (credId, _) ->
                 request.allowList.any { it.id.contentEquals(credId) }
             } ?: return@dispatch respondError(StatusCode.CTAP2_ERR_INVALID_CREDENTIAL)
+        }
+        testUserVerification(request.rpId, credId, user) {
+            logger.info("AuthenticatorMakeCredential: verification failed")
+            return@dispatch respondError(StatusCode.CTAP2_ERR_OPERATION_DENIED)
         }
 
         val rpIdHash = MessageDigest.getInstance("SHA-256").digest(request.rpId.toByteArray())
@@ -168,7 +181,50 @@ fun DispatchRoute.authenticatorApi() {
     }
 
     dispatch(AuthenticatorApiCode.AUTHENTICATOR_GET_INFO) {
+        TODO("Not yet implemented")
+    }
+}
 
+private suspend inline fun DispatchRoute.testUserVerification(
+    rpId: String,
+    credId: ByteArray,
+    user: PublicKeyCredentialUserEntity,
+    onFail: () -> Unit = {},
+) {
+    auth.state.rpId = Optional.of(rpId)
+    auth.state.selectedCredential = Optional.of(credId to user)
+    auth.state.state = AuthenticatorState.State.WAITING_FOR_USER_VERIFICATION
+    waitUntil {
+        auth.state.state == AuthenticatorState.State.VERIFICATION_SUCCESS ||
+                auth.state.state == AuthenticatorState.State.VERIFICATION_FAILED
+    }
+    if (auth.state.state == AuthenticatorState.State.VERIFICATION_FAILED) {
+        onFail()
+    }
+}
+
+private suspend inline fun DispatchRoute.userSelectCredentials(
+    rpId: String,
+    credentials: Set<CredentialPair>,
+    onCancel: () -> Unit = {},
+): Optional<CredentialPair> {
+    auth.state.rpId = Optional.of(rpId)
+    auth.state.credentials = credentials
+    auth.state.state = AuthenticatorState.State.WAITING_FOR_CHOOSE_CREDENTIAL
+    waitUntil {
+        auth.state.state == AuthenticatorState.State.CHOOSE_FINISHED ||
+                auth.state.state == AuthenticatorState.State.CHOOSE_CANCELED
+    }
+    if (auth.state.state == AuthenticatorState.State.CHOOSE_CANCELED) {
+        onCancel()
+    }
+    return auth.state.selectedCredential
+}
+
+
+private suspend fun waitUntil(function: () -> Boolean) {
+    while (!function()) {
+        kotlinx.coroutines.delay(100)
     }
 }
 

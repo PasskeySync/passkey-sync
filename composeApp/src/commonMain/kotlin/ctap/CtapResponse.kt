@@ -22,4 +22,6 @@ object StatusCode {
     const val CTAP2_ERR_CREDENTIAL_EXCLUDED = 0x19.toByte()
     const val CTAP2_ERR_NO_CREDENTIALS = 0x2E.toByte()
     const val CTAP2_ERR_INVALID_CREDENTIAL = 0x22.toByte()
+    const val CTAP2_ERR_USER_ACTION_PENDING = 0x23.toByte()
+    const val CTAP2_ERR_OPERATION_DENIED = 0x27.toByte()
 }

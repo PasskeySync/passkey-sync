@@ -16,6 +16,7 @@ data class PublicKeyCredentialRpEntity(
 @Serializable
 data class PublicKeyCredentialUserEntity(
     @ByteString val id: ByteArray,
+    val name: String,
     val displayName: String,
 )
 

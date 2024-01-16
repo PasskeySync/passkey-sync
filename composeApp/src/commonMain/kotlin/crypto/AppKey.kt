@@ -12,7 +12,9 @@ expect fun generateAppKey(
     user: PublicKeyCredentialUserEntity,
 ): ECCredentialPublicKey
 
-expect fun getExistingCredentials(rpId: String): Set<Pair<ByteArray, PublicKeyCredentialUserEntity>>
+typealias CredentialPair = Pair<ByteArray, PublicKeyCredentialUserEntity>
+
+expect fun getExistingCredentials(rpId: String): Set<CredentialPair>
 
 expect fun getExistingRps(): Set<String>
 

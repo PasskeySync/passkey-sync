@@ -116,7 +116,7 @@ actual fun generateAppKey(
     )
 }
 
-actual fun getExistingCredentials(rpId: String): Set<Pair<ByteArray, PublicKeyCredentialUserEntity>> {
+actual fun getExistingCredentials(rpId: String): Set<CredentialPair> {
     return credentialInfo.getOrPut(rpId) { mutableMapOf() }.map { (credId, credInfo) ->
         credId.decodeBase64Bytes() to credInfo.user
     }.toSet()
@@ -126,7 +126,6 @@ actual fun getExistingRps(): Set<String> {
     return credentialInfo.keys
 }
 
-@OptIn(ExperimentalStdlibApi::class)
 actual fun signMessage(
     rpId: String,
     credId: ByteArray,
