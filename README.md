@@ -1,16 +1,18 @@
-This is a Kotlin Multiplatform project targeting Android, Desktop, Server.
+# Passkey Demo - PasskeySync Authenticator
 
-* `/composeApp` is for code that will be shared across your Compose Multiplatform applications.
-  It contains several subfolders:
-  - `commonMain` is for code that’s common for all targets.
-  - Other folders are for Kotlin code that will be compiled for only the platform indicated in the folder name.
-    For example, if you want to use Apple’s CoreCrypto for the iOS part of your Kotlin app,
-    `iosMain` would be the right folder for such calls.
+A software authenticator
+for [CTAP](https://fidoalliance.org/specs/fido-v2.2-rd-20230321/fido-client-to-authenticator-protocol-v2.2-rd-20230321.html),
+implemented in
+Kotlin [Compose Multiplatform](https://www.jetbrains.com/help/kotlin-multiplatform-dev/get-started.html).
 
-* `/server` is for the Ktor server application.
+Note that this authenticator only works with the
+modified [client](https://github.com/PasskeySync/relying-party-web), Websocket is used for CTAP
+communication.
 
-* `/shared` is for the code that will be shared between all targets in the project.
-  The most important subfolder is `commonMain`. If preferred, you can add code to the platform-specific folders here too.
+Due to time unavailability, only the desktop version is implemented.
 
+## Screenshots
 
-Learn more about [Kotlin Multiplatform](https://www.jetbrains.com/help/kotlin-multiplatform-dev/get-started.html)…
+![img_1.png](img/img_1.png)
+![img.png](img/img.png)
+![img_2.png](img/img_2.png)
